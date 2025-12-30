@@ -7,19 +7,36 @@
 
 <style>
   html, body { margin:0; background:#000; }
-  body { display:flex; justify-content:center; padding:40px; }
+  body {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:40px;
+    gap:12px;
+  }
   canvas{
     width:360px;
     height:auto;
-    background:#000;
+    background:transparent;
     border:2px solid #222;
   }
+  button{
+    background:#111;
+    color:#fff;
+    border:1px solid #333;
+    padding:8px 14px;
+    border-radius:6px;
+    cursor:pointer;
+    font:14px Inter, system-ui, sans-serif;
+  }
+  button:hover{ background:#1a1a1a; }
 </style>
 </head>
 
 <body>
 
 <canvas id="c" width="1080" height="1920"></canvas>
+<button id="exportBtn">Export PNG</button>
 
 <script>
 /* =====================================================
@@ -51,7 +68,7 @@ const HERO = {
    TIME (LOCKED)
 ===================================================== */
 const TIME = {
-  offsetX: -131,
+  offsetX: -123,
   offsetY: 8,
   size: 38,
   weight: 600
@@ -80,15 +97,11 @@ const META = {
 const PILL = {
   offsetX: 45,
   offsetY: 57,
-
   w: 420,
   h: 117,
-
   scale: 0.72,
-
   padX: 22,
   padY: 18,
-
   gap: 10,
   radius: 8,
   minW: 140
@@ -187,7 +200,7 @@ function drawLines(ctx, lines, x, y, lh) {
 }
 
 /* =====================================================
-   AUTO-FIT TEXT TO PILL (NEW)
+   AUTO-FIT TEXT TO PILL
 ===================================================== */
 function fitTextToBox(ctx, showText, metaText, maxW, maxH) {
   let scale = 1;
@@ -247,8 +260,7 @@ function isLiveRow(row) {
    MAIN
 ===================================================== */
 async function render() {
-  ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, 1080, 1920);
+  ctx.clearRect(0, 0, 1080, 1920); // transparent bg
 
   const csvText = await fetch(
     CSV_URL + "&cacheBust=" + Date.now(),
@@ -277,7 +289,7 @@ async function render() {
   const baseX = HERO.x + HERO.size / 2;
   const baseY = HERO.y + HERO.size;
 
-  /* ===== TIME (UNCHANGED) ===== */
+  /* ===== TIME ===== */
   const timeText = row["A-B"];
   if (timeText) {
     ctx.fillStyle = "#fff";
@@ -295,11 +307,26 @@ async function render() {
     row["Guest MC"] ? `🎤 ${row["Guest MC"]}` : ""
   ].filter(Boolean).join("  +  ");
 
-  const pillW = PILL.w;
   let anchorX = typeof PILL_ANCHOR.x === "number" ? PILL_ANCHOR.x : baseX + PILL.offsetX;
   let anchorY = typeof PILL_ANCHOR.y === "number" ? PILL_ANCHOR.y : baseY + PILL.offsetY;
 
-  let pillX = anchorX - pillW;
+  const innerH = PILL.h - PILL.padY * 2;
+
+  // first fit using max width
+  const fit = fitTextToBox(ctx, showText, metaText, PILL.w - PILL.padX * 2, innerH);
+
+  // dynamic pill width
+  let contentW = 0;
+
+  ctx.font = `${SHOW.weight} ${SHOW.baseSize * PILL.scale * fit.scale}px Inter, system-ui, sans-serif`;
+  fit.showLines.forEach(l => contentW = Math.max(contentW, ctx.measureText(l).width));
+
+  ctx.font = `${META.weight} ${META.baseSize * PILL.scale * fit.scale}px Inter, system-ui, sans-serif`;
+  fit.metaLines.forEach(l => contentW = Math.max(contentW, ctx.measureText(l).width));
+
+  const pillW = Math.max(PILL.minW, Math.min(PILL.w, contentW + PILL.padX * 2));
+
+  const pillX = anchorX - pillW;
   const pillY = anchorY;
 
   ctx.fillStyle = "#fff";
@@ -309,22 +336,16 @@ async function render() {
   const innerX = pillX + PILL.padX;
   const innerY = pillY + PILL.padY;
   const innerW = pillW - PILL.padX * 2;
-  const innerH = PILL.h - PILL.padY * 2;
-
-  const fit = fitTextToBox(ctx, showText, metaText, innerW, innerH);
-
-  const showSize = SHOW.baseSize * PILL.scale * fit.scale;
-  const metaSize = META.baseSize * PILL.scale * fit.scale;
 
   const blockY = innerY + Math.max(0, (innerH - fit.totalH) / 2);
 
   ctx.fillStyle = SHOW.color;
-  ctx.font = `${SHOW.weight} ${showSize}px Inter, system-ui, sans-serif`;
+  ctx.font = `${SHOW.weight} ${SHOW.baseSize * PILL.scale * fit.scale}px Inter, system-ui, sans-serif`;
   drawLines(ctx, fit.showLines, innerX, blockY, fit.showLH);
 
   if (metaText) {
     ctx.fillStyle = META.color;
-    ctx.font = `${META.weight} ${metaSize}px Inter, system-ui, sans-serif`;
+    ctx.font = `${META.weight} ${META.baseSize * PILL.scale * fit.scale}px Inter, system-ui, sans-serif`;
     drawLines(
       ctx,
       fit.metaLines,
@@ -338,6 +359,16 @@ async function render() {
 }
 
 render();
+
+/* =====================================================
+   EXPORT
+===================================================== */
+document.getElementById("exportBtn").onclick = () => {
+  const a = document.createElement("a");
+  a.download = "mesh-story-overlay.png";
+  a.href = canvas.toDataURL("image/png");
+  a.click();
+};
 </script>
 
 </body>
