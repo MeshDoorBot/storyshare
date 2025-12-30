@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mesh Story — Image + Time Text</title>
+<title>Mesh Story — Image + Time Pill</title>
 
 <style>
   html, body { margin:0; background:#000; }
@@ -48,13 +48,24 @@ const HERO = {
 };
 
 /* =====================================================
-   TIME TEXT — NUDGE CONTROLS
+   TIME TEXT (LOCKED)
 ===================================================== */
 const TIME = {
-  offsetX: -140,     // +right / -left
-  offsetY: 16,    // +down / -up from hero bottom
+  offsetX: -140,
+  offsetY: 16,
   size: 48,
   weight: 600
+};
+
+/* =====================================================
+   TIME PILL — NUDGE CONTROLS
+===================================================== */
+const PILL = {
+  padX: 28,     // horizontal padding
+  padY: 18,     // vertical padding
+  radius: 999,  // fully rounded
+  offsetX: 0,   // move pill independently if needed
+  offsetY: 0
 };
 
 /* =====================================================
@@ -117,7 +128,7 @@ function drawRoundedCover(ctx, img, x, y, size, r) {
 }
 
 /* =====================================================
-   TIME FORMATTER (24h → 12h am/pm)
+   TIME FORMATTER
 ===================================================== */
 function formatTime(t) {
   let [h, m] = t.split(":").map(Number);
@@ -151,11 +162,9 @@ async function render() {
     return o;
   });
 
-  // pick first row with Image URL
   const row = data.find(r => r["Image URL"]);
   if (!row) return;
 
-  // load images
   const heroImg = await loadImage(row["Image URL"]);
   const overlayImg = await loadImage(OVERLAY_SRC);
 
@@ -164,30 +173,43 @@ async function render() {
     drawRoundedCover(ctx, heroImg, HERO.x, HERO.y, HERO.size, HERO.radius);
   }
 
-  // ===== TIME TEXT (FORMATTED) =====
+  // ===== TIME + PILL =====
   const rawRange = row["A-B"];
   const timeText = formatTimeRange(rawRange);
 
   if (timeText) {
-    ctx.fillStyle = "#fff";
     ctx.font = `${TIME.weight} ${TIME.size}px Inter, system-ui, sans-serif`;
     ctx.textBaseline = "top";
 
-    const x =
+    const textWidth = ctx.measureText(timeText).width;
+
+    const textX =
       HERO.x +
       HERO.size / 2 -
-      ctx.measureText(timeText).width / 2 +
+      textWidth / 2 +
       TIME.offsetX;
 
-    const y =
+    const textY =
       HERO.y +
       HERO.size +
       TIME.offsetY;
 
-    ctx.fillText(timeText, x, y);
+    // pill
+    const pillX = textX - PILL.padX + PILL.offsetX;
+    const pillY = textY - PILL.padY + PILL.offsetY;
+    const pillW = textWidth + PILL.padX * 2;
+    const pillH = TIME.size + PILL.padY * 2;
+
+    ctx.fillStyle = "#fff";
+    roundRect(ctx, pillX, pillY, pillW, pillH, PILL.radius);
+    ctx.fill();
+
+    // text
+    ctx.fillStyle = "#000";
+    ctx.fillText(timeText, textX, textY);
   }
 
-  // overlay (1:1)
+  // overlay
   if (overlayImg) {
     ctx.drawImage(overlayImg, 0, 0);
   }
