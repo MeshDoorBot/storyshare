@@ -48,7 +48,7 @@ const HERO = {
 };
 
 /* =====================================================
-   TIME (OUTSIDE PILL — FIXED)
+   TIME — COMPLETELY INDEPENDENT (LOCKED)
 ===================================================== */
 const TIME = {
   offsetX: -180,
@@ -58,7 +58,7 @@ const TIME = {
 };
 
 /* =====================================================
-   BASE TEXT SIZES (DO NOT TUNE THESE)
+   BASE TEXT SIZES (PILL ONLY)
 ===================================================== */
 const SHOW = {
   baseSize: 58,
@@ -73,13 +73,13 @@ const META = {
 };
 
 /* =====================================================
-   PILL — SINGLE CONTROL POINT
+   PILL — SINGLE SOURCE OF TRUTH
 ===================================================== */
 const PILL = {
   offsetX: -43,
   offsetY: 64,
 
-  scale: 0.88,     // 🔥 MASTER SCALE (THIS IS WHAT YOU ADJUST)
+  scale: 0.88,     // 👈 ONLY affects pill text
 
   padX: 36,
   padTop: 18,
@@ -179,16 +179,20 @@ async function render() {
   const baseX = HERO.x + HERO.size / 2;
   const baseY = HERO.y + HERO.size;
 
-  // time
+  /* ===== TIME (UNCHANGED) ===== */
   const timeText = formatTimeRange(row["A-B"]);
   if (timeText) {
     ctx.fillStyle = "#fff";
     ctx.font = `${TIME.weight} ${TIME.size}px Inter, system-ui, sans-serif`;
     const w = ctx.measureText(timeText).width;
-    ctx.fillText(timeText, baseX - w / 2 + TIME.offsetX, baseY + TIME.offsetY);
+    ctx.fillText(
+      timeText,
+      baseX - w / 2 + TIME.offsetX,
+      baseY + TIME.offsetY
+    );
   }
 
-  // ===== PILL + TEXT (SCALED) =====
+  /* ===== PILL + SCALED TEXT ===== */
   const scale = PILL.scale;
   const showSize = SHOW.baseSize * scale;
   const metaSize = META.baseSize * scale;
