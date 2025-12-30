@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mesh Vert Test</title>
+
+<style>
+  html, body {
+    margin: 0;
+    background: #000;
+  }
+  body {
+    display: flex;
+    justify-content: center;
+    padding: 40px;
+  }
+  canvas {
+    width: 360px; /* preview scale */
+    height: auto;
+    background: #000;
+    border: 2px solid #333;
+  }
+</style>
+</head>
+
+<body>
+
+<canvas id="c" width="1080" height="1920"></canvas>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+// =======================
+// BACKGROUND
+// =======================
+ctx.fillStyle = "#000";
+ctx.fillRect(0, 0, 1080, 1920);
+
+// =======================
+// DEBUG TEXT
+// =======================
+ctx.fillStyle = "#fff";
+ctx.font = "48px Arial";
+ctx.fillText("MESH DEBUG TEST", 360, 120);
+
+// =======================
+// LOAD MESH IMAGE (LOCAL)
+// =======================
+const mesh = new Image();
+mesh.src = "./meshvertstory.png";
+
+mesh.onload = () => {
+  console.log("mesh loaded", mesh.width, mesh.height);
+
+  // 🔴 DEBUG BLOCK BEHIND IMAGE
+  ctx.fillStyle = "rgba(255,0,0,0.25)";
+  ctx.fillRect(100, 300, 300, 1200);
+
+  // SCALE BY HEIGHT (BIG ON PURPOSE)
+  const targetHeight = 1200;
+  const scale = targetHeight / mesh.height;
+
+  ctx.drawImage(
+    mesh,
+    100,
+    300,
+    mesh.width * scale,
+    mesh.height * scale
+  );
+
+  // LABEL
+  ctx.fillStyle = "#0f0";
+  ctx.font = "32px Arial";
+  ctx.fillText("mesh drawn here ↑", 100, 270);
+};
+
+mesh.onerror = () => {
+  console.error("FAILED TO LOAD meshvertstory.png");
+
+  ctx.fillStyle = "red";
+  ctx.font = "48px Arial";
+  ctx.fillText("FAILED TO LOAD MESH", 260, 960);
+};
+</script>
+
+</body>
+</html>
