@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mesh Story — Image + Text Pill</title>
+<title>Mesh Story — Image + Text Pill (Container)</title>
 
 <style>
   html, body { margin:0; background:#000; }
@@ -58,34 +58,33 @@ const TIME = {
 };
 
 /* =====================================================
-   SHOW TEXT (LOCKED BASELINES)
+   TEXT STYLES (NO POSITION HERE)
 ===================================================== */
 const SHOW = {
-  offsetX: -88,
-  offsetY: 64,
   size: 58,
-  weight: 700
+  weight: 700,
+  color: "#000"
 };
 
 const META = {
-  offsetX: -214,
-  offsetY: 125,
   size: 38,
   weight: 500,
-  color: "#cfcfcf"
+  color: "#333"
 };
 
 /* =====================================================
-   PILL — NUDGE CONTROLS (NEW)
+   PILL — SINGLE SOURCE OF POSITION TRUTH
 ===================================================== */
 const PILL = {
-  padX: 36,        // horizontal padding
-  padTop: 28,      // top padding
-  padBottom: 26,   // bottom padding
-  gap: 10,         // space between show + meta
-  radius: 48,      // corner radius
-  offsetX: 0,      // move pill left/right
-  offsetY: 0       // move pill up/down
+  offsetX: 0,      // move pill + text left/right
+  offsetY: 64,     // move pill + text up/down (from hero bottom)
+
+  padX: 36,
+  padTop: 28,
+  padBottom: 26,
+  gap: 10,
+
+  radius: 48
 };
 
 /* =====================================================
@@ -194,7 +193,7 @@ async function render() {
   const baseX = HERO.x + HERO.size / 2;
   const baseY = HERO.y + HERO.size;
 
-  // ===== TIME (NO PILL) =====
+  // ===== TIME (OUTSIDE PILL) =====
   const timeText = formatTimeRange(row["A-B"]);
   if (timeText) {
     ctx.fillStyle = "#fff";
@@ -209,7 +208,7 @@ async function render() {
     );
   }
 
-  // ===== SHOW + META (INSIDE PILL) =====
+  // ===== PILL CONTENT =====
   const showText = row["Now Playing"] || "";
   const metaParts = [];
   if (row["DJ"]) metaParts.push(row["DJ"]);
@@ -218,11 +217,10 @@ async function render() {
   const metaText = metaParts.join("  +  ");
 
   if (showText || metaText) {
-    // measure show
+    // measure text widths
     ctx.font = `${SHOW.weight} ${SHOW.size}px Inter, system-ui, sans-serif`;
     const showW = ctx.measureText(showText).width;
 
-    // measure meta
     ctx.font = `${META.weight} ${META.size}px Inter, system-ui, sans-serif`;
     const metaW = ctx.measureText(metaText).width;
 
@@ -232,7 +230,7 @@ async function render() {
       baseX - pillW / 2 + PILL.offsetX;
 
     const pillY =
-      baseY + SHOW.offsetY + PILL.offsetY;
+      baseY + PILL.offsetY;
 
     const pillH =
       PILL.padTop +
@@ -240,38 +238,38 @@ async function render() {
       (metaText ? PILL.gap + META.size : 0) +
       PILL.padBottom;
 
-    // pill bg
+    // draw pill
     ctx.fillStyle = "#fff";
     roundRect(ctx, pillX, pillY, pillW, pillH, PILL.radius);
     ctx.fill();
 
     let textY = pillY + PILL.padTop;
 
-    // show text
+    // show name (inside pill)
     if (showText) {
-      ctx.fillStyle = "#000";
+      ctx.fillStyle = SHOW.color;
       ctx.font = `${SHOW.weight} ${SHOW.size}px Inter, system-ui, sans-serif`;
       ctx.fillText(
         showText,
-        baseX - showW / 2 + SHOW.offsetX,
+        pillX + (pillW - showW) / 2,
         textY
       );
       textY += SHOW.size + PILL.gap;
     }
 
-    // meta text
+    // meta (inside pill)
     if (metaText) {
-      ctx.fillStyle = "#333";
+      ctx.fillStyle = META.color;
       ctx.font = `${META.weight} ${META.size}px Inter, system-ui, sans-serif`;
       ctx.fillText(
         metaText,
-        baseX - metaW / 2 + META.offsetX,
+        pillX + (pillW - metaW) / 2,
         textY
       );
     }
   }
 
-  // overlay on top
+  // overlay
   if (overlayImg) {
     ctx.drawImage(overlayImg, 0, 0);
   }
