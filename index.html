@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mesh Vert Overlay — Base</title>
+<title>Mesh Story — Image Lock</title>
 
 <style>
   html, body {
@@ -29,57 +29,156 @@
 <canvas id="c" width="1080" height="1920"></canvas>
 
 <script>
+/* =====================================================
+   CONFIG
+===================================================== */
+
+// CSV source (public)
+const CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTavGvSojxM1vYpMv0FSoC-WzIK3IqTYPNl1SYbya4iV8VJUaEmHso7yghmGQPLJvwpsEMzKjbonPDz/pub?output=csv";
+
+// mesh overlay (local file in repo)
+const MESH_SRC = "./meshvertstory.png";
+
+/* =====================================================
+   CANVAS + LAYOUT
+===================================================== */
+
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
-// =======================
-// BACKGROUND
-// =======================
-ctx.fillStyle = "#000";
-ctx.fillRect(0, 0, 1080, 1920);
+// hero placement (LOCK THESE VISUALLY)
+const HERO = {
+  x: 180,
+  y: 420,
+  size: 720,
+  radius: 64
+};
 
-// =======================
-// LOAD MESH OVERLAY (AS-IS)
-// =======================
-const mesh = new Image();
-mesh.src = "./meshvertstory.png";
+// mesh placement (LOCK THESE VISUALLY)
+const MESH = {
+  x: 120,
+  y: 260,
+  height: 1400
+};
 
-mesh.onload = () => {
-  console.log("mesh loaded:", mesh.width, mesh.height);
+/* =====================================================
+   HELPERS
+===================================================== */
 
-  // DEBUG BACKDROP (behind mesh so you can see bounds)
-  ctx.fillStyle = "rgba(255,0,0,0.25)";
-  ctx.fillRect(120, 260, 320, 1400);
+function loadImage(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
 
-  // scale by HEIGHT only — no rotation, no tricks
-  const targetHeight = 1400;
-  const scale = targetHeight / mesh.height;
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
 
-  const drawWidth  = mesh.width * scale;
-  const drawHeight = mesh.height * scale;
+function drawHero(ctx, img, cfg) {
+  ctx.save();
+  roundRect(ctx, cfg.x, cfg.y, cfg.size, cfg.size, cfg.radius);
+  ctx.clip();
 
-  const x = 120;
-  const y = 260;
-
-  ctx.drawImage(
-    mesh,
-    x,
-    y,
-    drawWidth,
-    drawHeight
+  const scale = Math.max(
+    cfg.size / img.width,
+    cfg.size / img.height
   );
 
-  // label
-  ctx.fillStyle = "#0f0";
-  ctx.font = "28px Arial";
-  ctx.fillText("mesh overlay (unrotated)", x, y - 16);
-};
+  ctx.drawImage(
+    img,
+    cfg.x + (cfg.size - img.width * scale) / 2,
+    cfg.y + (cfg.size - img.height * scale) / 2,
+    img.width * scale,
+    img.height * scale
+  );
 
-mesh.onerror = () => {
-  ctx.fillStyle = "red";
-  ctx.font = "48px Arial";
-  ctx.fillText("FAILED TO LOAD meshvertstory.png", 140, 960);
-};
+  ctx.restore();
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], n = text[i + 1];
+    if (c === '"' && inQuotes && n === '"') {
+      field += '"'; i++;
+    } else if (c === '"') {
+      inQuotes = !inQuotes;
+    } else if (c === "," && !inQuotes) {
+      row.push(field); field = "";
+    } else if (c === "\n" && !inQuotes) {
+      row.push(field);
+      rows.push(row);
+      row = []; field = "";
+    } else {
+      field += c;
+    }
+  }
+  if (field) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+/* =====================================================
+   MAIN
+===================================================== */
+
+async function render() {
+  // background
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, 1080, 1920);
+
+  // load CSV
+  const csvText = await fetch(CSV_URL, { cache: "no-store" }).then(r => r.text());
+  const rows = parseCSV(csvText);
+  const headers = rows.shift();
+
+  // map rows
+  const data = rows.map(r => {
+    const o = {};
+    headers.forEach((h, i) => o[h] = r[i] || "");
+    return o;
+  });
+
+  // take FIRST row with an Image URL
+  const row = data.find(r => r["Image URL"]);
+  if (!row) return;
+
+  // load images
+  const heroImg = await loadImage(row["Image URL"]);
+  const meshImg = await loadImage(MESH_SRC);
+
+  // draw hero
+  if (heroImg) {
+    drawHero(ctx, heroImg, HERO);
+  }
+
+  // draw mesh OVER hero
+  if (meshImg) {
+    const scale = MESH.height / meshImg.height;
+    ctx.drawImage(
+      meshImg,
+      MESH.x,
+      MESH.y,
+      meshImg.width * scale,
+      meshImg.height * scale
+    );
+  }
+}
+
+render();
 </script>
 
 </body>
