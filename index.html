@@ -14,35 +14,53 @@
     padding:40px;
     gap:12px;
   }
+
   canvas{
     width:360px;
     height:auto;
     background:transparent;
     border:2px solid #222;
   }
-button{
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 9999;
 
-  background:#111;
-  color:#fff;
-  border:1px solid #333;
-  padding:10px 16px;
-  border-radius:8px;
-  cursor:pointer;
-  font:14px Inter, system-ui, sans-serif;
-}
-button:hover{ background:#1a1a1a; }
+  /* ================================
+     UI OVERLAY (EXPORT BUTTON)
+     ================================ */
+  #ui-layer{
+    position:fixed;
+    inset:0;
+    z-index:999999;
+    pointer-events:none;
+  }
 
+  #ui-layer button{
+    position:absolute;
+    bottom:24px;
+    right:24px;
+    pointer-events:auto;
+
+    background:#111;
+    color:#fff;
+    border:1px solid #333;
+    padding:10px 16px;
+    border-radius:8px;
+    cursor:pointer;
+    font:14px Inter, system-ui, sans-serif;
+  }
+
+  #ui-layer button:hover{
+    background:#1a1a1a;
+  }
 </style>
 </head>
 
 <body>
 
 <canvas id="c" width="1080" height="1920"></canvas>
-<button id="exportBtn">Export PNG</button>
+
+<!-- ✅ EXPORT BUTTON LAYER -->
+<div id="ui-layer">
+  <button id="exportBtn">Export PNG</button>
+</div>
 
 <script>
 /* =====================================================
@@ -266,7 +284,7 @@ function isLiveRow(row) {
    MAIN
 ===================================================== */
 async function render() {
-  ctx.clearRect(0, 0, 1080, 1920); // transparent bg
+  ctx.clearRect(0, 0, 1080, 1920);
 
   const csvText = await fetch(
     CSV_URL + "&cacheBust=" + Date.now(),
@@ -295,7 +313,6 @@ async function render() {
   const baseX = HERO.x + HERO.size / 2;
   const baseY = HERO.y + HERO.size;
 
-  /* ===== TIME ===== */
   const timeText = row["A-B"];
   if (timeText) {
     ctx.fillStyle = "#fff";
@@ -305,7 +322,6 @@ async function render() {
     ctx.fillText(timeText, baseX - w / 2 + TIME.offsetX, baseY + TIME.offsetY);
   }
 
-  /* ===== PILL TEXT ===== */
   const showText = row["Now Playing"] || "";
   const metaText = [
     row["DJ"],
@@ -317,11 +333,8 @@ async function render() {
   let anchorY = typeof PILL_ANCHOR.y === "number" ? PILL_ANCHOR.y : baseY + PILL.offsetY;
 
   const innerH = PILL.h - PILL.padY * 2;
-
-  // first fit using max width
   const fit = fitTextToBox(ctx, showText, metaText, PILL.w - PILL.padX * 2, innerH);
 
-  // dynamic pill width
   let contentW = 0;
 
   ctx.font = `${SHOW.weight} ${SHOW.baseSize * PILL.scale * fit.scale}px Inter, system-ui, sans-serif`;
