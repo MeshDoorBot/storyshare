@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mesh Story — Image + Scalable Text Pill</title>
+<title>Mesh Story — Pill Textbox (Wrap)</title>
 
 <style>
   html, body { margin:0; background:#000; }
@@ -48,7 +48,7 @@ const HERO = {
 };
 
 /* =====================================================
-   TIME — COMPLETELY INDEPENDENT (LOCKED)
+   TIME (LOCKED)
 ===================================================== */
 const TIME = {
   offsetX: -180,
@@ -63,27 +63,37 @@ const TIME = {
 const SHOW = {
   baseSize: 58,
   weight: 700,
-  color: "#000"
+  color: "#000",
+  lineGap: 8     // extra gap between wrapped lines
 };
 
 const META = {
   baseSize: 38,
   weight: 500,
-  color: "#333"
+  color: "#333",
+  lineGap: 6
 };
 
 /* =====================================================
-   PILL — SINGLE SOURCE OF TRUTH
+   PILL — TEXTBOX CONTROLS (THIS IS WHAT YOU TUNE)
 ===================================================== */
 const PILL = {
+  // position relative to hero bottom
   offsetX: -43,
   offsetY: 64,
 
-  scale: 0.30,     // 👈 ONLY affects pill text
+  // 🔥 size of the pill textbox (YOU CONTROL THIS)
+  w: 820,
+  h: 190,
 
-  padX: 86,
-  padTop: 18,
-  padBottom: 16,
+  // scale affects ONLY pill text sizes
+  scale: 0.72,
+
+  // padding inside pill
+  padX: 44,
+  padY: 26,
+
+  // gap between show block + meta block
   gap: 10,
 
   radius: 48
@@ -128,6 +138,26 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+function drawRoundedCover(ctx, img, x, y, size, r) {
+  ctx.save();
+  roundRect(ctx, x, y, size, size, r);
+  ctx.clip();
+
+  const scale = Math.max(size / img.width, size / img.height);
+  const w = img.width * scale;
+  const h = img.height * scale;
+
+  ctx.drawImage(
+    img,
+    x + (size - w) / 2,
+    y + (size - h) / 2,
+    w,
+    h
+  );
+
+  ctx.restore();
+}
+
 /* =====================================================
    TIME FORMATTER
 ===================================================== */
@@ -145,13 +175,40 @@ function formatTimeRange(range) {
 }
 
 /* =====================================================
+   TEXT WRAP (CANVAS)
+===================================================== */
+function wrapText(ctx, text, maxWidth) {
+  const words = (text || "").split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+
+  for (const w of words) {
+    const test = line ? (line + " " + w) : w;
+    if (ctx.measureText(test).width <= maxWidth) {
+      line = test;
+    } else {
+      if (line) lines.push(line);
+      line = w;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawLines(ctx, lines, x, y, lineHeight) {
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], x, y + i * lineHeight);
+  }
+}
+
+/* =====================================================
    MAIN
 ===================================================== */
 async function render() {
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, 1080, 1920);
 
-  const csvText = await fetch(CSV_URL).then(r => r.text());
+  const csvText = await fetch(CSV_URL, { cache: "no-store" }).then(r => r.text());
   const rows = parseCSV(csvText);
   const headers = rows.shift();
 
@@ -169,11 +226,7 @@ async function render() {
 
   // hero
   if (heroImg) {
-    ctx.save();
-    roundRect(ctx, HERO.x, HERO.y, HERO.size, HERO.size, HERO.radius);
-    ctx.clip();
-    ctx.drawImage(heroImg, HERO.x, HERO.y, HERO.size, HERO.size);
-    ctx.restore();
+    drawRoundedCover(ctx, heroImg, HERO.x, HERO.y, HERO.size, HERO.radius);
   }
 
   const baseX = HERO.x + HERO.size / 2;
@@ -184,19 +237,30 @@ async function render() {
   if (timeText) {
     ctx.fillStyle = "#fff";
     ctx.font = `${TIME.weight} ${TIME.size}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = "top";
     const w = ctx.measureText(timeText).width;
-    ctx.fillText(
-      timeText,
-      baseX - w / 2 + TIME.offsetX,
-      baseY + TIME.offsetY
-    );
+    ctx.fillText(timeText, baseX - w / 2 + TIME.offsetX, baseY + TIME.offsetY);
   }
 
-  /* ===== PILL + SCALED TEXT ===== */
-  const scale = PILL.scale;
-  const showSize = SHOW.baseSize * scale;
-  const metaSize = META.baseSize * scale;
+  /* ===== PILL TEXTBOX ===== */
+  const pillX = (baseX - PILL.w / 2) + PILL.offsetX;
+  const pillY = baseY + PILL.offsetY;
 
+  // draw pill bg
+  ctx.fillStyle = "#fff";
+  roundRect(ctx, pillX, pillY, PILL.w, PILL.h, PILL.radius);
+  ctx.fill();
+
+  // compute inner box
+  const innerX = pillX + PILL.padX;
+  const innerY = pillY + PILL.padY;
+  const innerW = PILL.w - PILL.padX * 2;
+
+  // scaled font sizes
+  const showSize = SHOW.baseSize * PILL.scale;
+  const metaSize = META.baseSize * PILL.scale;
+
+  // build text
   const showText = row["Now Playing"] || "";
   const metaText = [
     row["DJ"],
@@ -204,36 +268,40 @@ async function render() {
     row["Guest MC"] ? `🎤 ${row["Guest MC"]}` : ""
   ].filter(Boolean).join("  +  ");
 
+  // wrap show lines
+  ctx.textBaseline = "top";
+  ctx.textAlign = "left";
+
   ctx.font = `${SHOW.weight} ${showSize}px Inter, system-ui, sans-serif`;
-  const showW = ctx.measureText(showText).width;
+  const showLines = wrapText(ctx, showText, innerW);
+  const showLineH = showSize + SHOW.lineGap;
 
+  // wrap meta lines
   ctx.font = `${META.weight} ${metaSize}px Inter, system-ui, sans-serif`;
-  const metaW = ctx.measureText(metaText).width;
+  const metaLines = wrapText(ctx, metaText, innerW);
+  const metaLineH = metaSize + META.lineGap;
 
-  const pillW = Math.max(showW, metaW) + PILL.padX * 2;
-  const pillH =
-    PILL.padTop +
-    showSize +
-    (metaText ? PILL.gap + metaSize : 0) +
-    PILL.padBottom;
+  // total text block height
+  const showBlockH = showLines.length * showLineH;
+  const metaBlockH = metaLines.length * metaLineH;
+  const totalH = showBlockH + (metaText ? PILL.gap + metaBlockH : 0);
 
-  const pillX = baseX - pillW / 2 + PILL.offsetX;
-  const pillY = baseY + PILL.offsetY;
+  // vertical placement inside pill (top padded, but keeps block centered-ish if you want)
+  // if you want STRICT top alignment, set blockY = innerY
+  const blockY = innerY + Math.max(0, ((PILL.h - PILL.padY * 2) - totalH) / 2);
 
-  ctx.fillStyle = "#fff";
-  roundRect(ctx, pillX, pillY, pillW, pillH, PILL.radius);
-  ctx.fill();
-
-  let y = pillY + PILL.padTop;
-
+  // draw show
   ctx.fillStyle = SHOW.color;
   ctx.font = `${SHOW.weight} ${showSize}px Inter, system-ui, sans-serif`;
-  ctx.fillText(showText, pillX + (pillW - showW) / 2, y);
-  y += showSize + PILL.gap;
+  drawLines(ctx, showLines, innerX, blockY, showLineH);
 
-  ctx.fillStyle = META.color;
-  ctx.font = `${META.weight} ${metaSize}px Inter, system-ui, sans-serif`;
-  ctx.fillText(metaText, pillX + (pillW - metaW) / 2, y);
+  // draw meta
+  if (metaText) {
+    const metaY = blockY + showBlockH + PILL.gap;
+    ctx.fillStyle = META.color;
+    ctx.font = `${META.weight} ${metaSize}px Inter, system-ui, sans-serif`;
+    drawLines(ctx, metaLines, innerX, metaY, metaLineH);
+  }
 
   // overlay
   if (overlayImg) ctx.drawImage(overlayImg, 0, 0);
