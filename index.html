@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mesh Story — Anchored Auto-Width Pill</title>
+<title>Mesh Story — Stable Anchored Pill</title>
 
 <style>
   html, body { margin:0; background:#000; }
@@ -48,7 +48,7 @@ const HERO = {
 };
 
 /* =====================================================
-   TIME (LOCKED — NOT IN PILL)
+   TIME (LOCKED — DO NOT TOUCH)
 ===================================================== */
 const TIME = {
   offsetX: -160,
@@ -75,21 +75,16 @@ const META = {
 };
 
 /* =====================================================
-   PILL — HARD ANCHOR + AUTO WIDTH
+   PILL — HARD ANCHOR (INDEPENDENT)
 ===================================================== */
 const PILL = {
-  // 🔒 HARD ANCHOR (top-left corner of pill)
-  offsetX: 45,
-  offsetY: 54,
+  offsetX: 45,   // 🔒 left edge anchor relative to HERO.x
+  offsetY: 54,   // 🔒 top edge anchor relative to hero bottom
 
-  // text scaling only
   scale: 0.72,
 
-  // padding
   padX: 22,
   padY: 18,
-
-  // gap between show + meta
   gap: 10,
 
   radius: 8
@@ -139,9 +134,9 @@ function drawRoundedCover(ctx, img, x, y, size, r) {
   roundRect(ctx, x, y, size, size, r);
   ctx.clip();
 
-  const scale = Math.max(size / img.width, size / img.height);
-  const w = img.width * scale;
-  const h = img.height * scale;
+  const s = Math.max(size / img.width, size / img.height);
+  const w = img.width * s;
+  const h = img.height * s;
 
   ctx.drawImage(
     img,
@@ -154,8 +149,12 @@ function drawRoundedCover(ctx, img, x, y, size, r) {
   ctx.restore();
 }
 
+function wrapText(ctx, text) {
+  return (text || "").split(/\n+/).filter(Boolean);
+}
+
 /* =====================================================
-   TIME FORMAT
+   TIME FORMAT (UNCHANGED)
 ===================================================== */
 function formatTime(t) {
   let [h, m] = t.split(":").map(Number);
@@ -168,27 +167,6 @@ function formatTimeRange(range) {
   if (!range || !range.includes("-")) return range;
   const [start, end] = range.split("-").map(s => s.trim());
   return `${formatTime(start)}–${formatTime(end)}`;
-}
-
-/* =====================================================
-   TEXT WRAP
-===================================================== */
-function wrapText(ctx, text, maxWidth) {
-  const words = (text || "").split(/\s+/).filter(Boolean);
-  const lines = [];
-  let line = "";
-
-  for (const w of words) {
-    const test = line ? line + " " + w : w;
-    if (ctx.measureText(test).width <= maxWidth) {
-      line = test;
-    } else {
-      if (line) lines.push(line);
-      line = w;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
 }
 
 /* =====================================================
@@ -219,9 +197,9 @@ async function render() {
     drawRoundedCover(ctx, heroImg, HERO.x, HERO.y, HERO.size, HERO.radius);
   }
 
-  const baseY = HERO.y + HERO.size;
+  const heroBottomY = HERO.y + HERO.size;
 
-  /* ===== TIME (UNCHANGED) ===== */
+  /* ===== TIME (IDENTICAL LOGIC) ===== */
   const timeText = formatTimeRange(row["A-B"]);
   if (timeText) {
     ctx.fillStyle = "#fff";
@@ -230,13 +208,13 @@ async function render() {
     ctx.fillText(
       timeText,
       HERO.x + HERO.size / 2 - w / 2 + TIME.offsetX,
-      baseY + TIME.offsetY
+      heroBottomY + TIME.offsetY
     );
   }
 
-  /* ===== PILL (HARD ANCHORED) ===== */
+  /* ===== PILL (COMPLETELY SEPARATE) ===== */
   const pillX = HERO.x + PILL.offsetX;
-  const pillY = baseY + PILL.offsetY;
+  const pillY = heroBottomY + PILL.offsetY;
 
   const scale = PILL.scale;
   const showSize = SHOW.baseSize * scale;
@@ -252,14 +230,13 @@ async function render() {
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
 
-  // measure + wrap
   ctx.font = `${SHOW.weight} ${showSize}px Inter, system-ui, sans-serif`;
-  const showLines = wrapText(ctx, showText, 1000);
+  const showLines = wrapText(ctx, showText);
 
   ctx.font = `${META.weight} ${metaSize}px Inter, system-ui, sans-serif`;
-  const metaLines = wrapText(ctx, metaText, 1000);
+  const metaLines = wrapText(ctx, metaText);
 
-  // longest line width
+  // width from longest line
   let textW = 0;
   for (const l of [...showLines, ...metaLines]) {
     textW = Math.max(textW, ctx.measureText(l).width);
@@ -267,12 +244,9 @@ async function render() {
 
   const pillW = textW + PILL.padX * 2;
 
-  const showBlockH = showLines.length * (showSize + SHOW.lineGap);
-  const metaBlockH = metaLines.length * (metaSize + META.lineGap);
-  const pillH =
-    showBlockH +
-    (metaText ? PILL.gap + metaBlockH : 0) +
-    PILL.padY * 2;
+  const showH = showLines.length * (showSize + SHOW.lineGap);
+  const metaH = metaLines.length * (metaSize + META.lineGap);
+  const pillH = showH + (metaText ? PILL.gap + metaH : 0) + PILL.padY * 2;
 
   // pill bg
   ctx.fillStyle = "#fff";
@@ -281,7 +255,7 @@ async function render() {
 
   let y = pillY + PILL.padY;
 
-  // show text
+  // show
   ctx.fillStyle = SHOW.color;
   ctx.font = `${SHOW.weight} ${showSize}px Inter, system-ui, sans-serif`;
   for (const line of showLines) {
@@ -289,7 +263,7 @@ async function render() {
     y += showSize + SHOW.lineGap;
   }
 
-  // meta text
+  // meta
   if (metaText) {
     y += PILL.gap;
     ctx.fillStyle = META.color;
