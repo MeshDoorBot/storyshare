@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mesh Story — Image Lock (1:1 Overlay)</title>
+<title>Mesh Story — Image + Time Text</title>
 
 <style>
   html, body { margin:0; background:#000; }
   body { display:flex; justify-content:center; padding:40px; }
   canvas{
-    width:360px;            /* preview scale */
+    width:360px;
     height:auto;
     background:#000;
     border:2px solid #222;
@@ -26,11 +26,9 @@
    CONFIG
 ===================================================== */
 
-// CSV source (public)
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vTavGvSojxM1vYpMv0FSoC-WzIK3IqTYPNl1SYbya4iV8VJUaEmHso7yghmGQPLJvwpsEMzKjbonPDz/pub?output=csv";
 
-// overlay inside this GitHub repo (NO scaling)
 const OVERLAY_SRC = "./meshvertstory.png";
 
 /* =====================================================
@@ -40,13 +38,23 @@ const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
 /* =====================================================
-   HERO LAYOUT (tweak later)
+   HERO (LOCKED)
 ===================================================== */
 const HERO = {
   x: 280,
   y: 500,
   size: 650,
   radius: 64
+};
+
+/* =====================================================
+   TIME TEXT — NUDGE CONTROLS
+===================================================== */
+const TIME = {
+  offsetX: 0,     // +right / -left
+  offsetY: 36,    // +down / -up from hero bottom
+  size: 48,       // font size
+  weight: 600
 };
 
 /* =====================================================
@@ -112,7 +120,7 @@ function drawRoundedCover(ctx, img, x, y, size, r) {
    MAIN
 ===================================================== */
 async function render() {
-  // base background
+  // background
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, 1080, 1920);
 
@@ -127,11 +135,11 @@ async function render() {
     return o;
   });
 
-  // pick first row with Image URL (just for now)
+  // pick first row with Image URL
   const row = data.find(r => r["Image URL"]);
   if (!row) return;
 
-  // load hero + overlay
+  // load images
   const heroImg = await loadImage(row["Image URL"]);
   const overlayImg = await loadImage(OVERLAY_SRC);
 
@@ -140,13 +148,30 @@ async function render() {
     drawRoundedCover(ctx, heroImg, HERO.x, HERO.y, HERO.size, HERO.radius);
   }
 
-  // overlay "slapped on" 1:1 (NO scaling)
-  if (overlayImg) {
-    // draw at native pixel size, top-left of canvas
-    ctx.drawImage(overlayImg, 0, 0);
+  // ===== TIME TEXT (A–B) =====
+  const timeText = row["A-B"];
+  if (timeText) {
+    ctx.fillStyle = "#fff";
+    ctx.font = `${TIME.weight} ${TIME.size}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = "top";
 
-    // optional: log dims so we can confirm it's 1080x1920
-    console.log("overlay size:", overlayImg.width, overlayImg.height);
+    const x =
+      HERO.x +
+      HERO.size / 2 -
+      ctx.measureText(timeText).width / 2 +
+      TIME.offsetX;
+
+    const y =
+      HERO.y +
+      HERO.size +
+      TIME.offsetY;
+
+    ctx.fillText(timeText, x, y);
+  }
+
+  // overlay (1:1)
+  if (overlayImg) {
+    ctx.drawImage(overlayImg, 0, 0);
   }
 }
 
