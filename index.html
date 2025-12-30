@@ -27,8 +27,7 @@
 ===================================================== */
 
 const CSV_URL =
-"https://docs.google.com/spreadsheets/d/1iqyTcNLTZqe4WPvhfdSguMO3X4iYnFMVS2KB8q-8pNg/gviz/tq?tqx=out:csv&gid=0";
-
+  "https://docs.google.com/spreadsheets/d/1iqyTcNLTZqe4WPvhfdSguMO3X4iYnFMVS2KB8q-8pNg/gviz/tq?tqx=out:csv&gid=0";
 
 const OVERLAY_SRC = "./meshvertstory.png";
 
@@ -76,7 +75,7 @@ const META = {
 };
 
 /* =====================================================
-   PILL — TEXTBOX CONTROLS (UNCHANGED)
+   PILL — TEXTBOX CONTROLS
 ===================================================== */
 const PILL = {
   offsetX: 45,
@@ -96,12 +95,12 @@ const PILL = {
 };
 
 /* =====================================================
-   PILL ANCHOR (NEW — PX CONTROL ONLY)
+   PILL ANCHOR
 ===================================================== */
 const PILL_ANCHOR = {
-  x: 650, // e.g. 540
-  y: null, // e.g. 1210
-  mode: "right" // "left" | "center" | "right"
+  x: 759,
+  y: null,
+  mode: "right"
 };
 
 /* =====================================================
@@ -163,25 +162,6 @@ function drawRoundedCover(ctx, img, x, y, size, r) {
   ctx.restore();
 }
 
-/* =====================================================
-   TIME FORMATTER
-===================================================== */
-function formatTime(t) {
-  let [h, m] = t.split(":").map(Number);
-  const ampm = h >= 12 ? "pm" : "am";
-  h = h % 12 || 12;
-  return m ? `${h}:${String(m).padStart(2,"0")}${ampm}` : `${h}${ampm}`;
-}
-
-function formatTimeRange(range) {
-  if (!range || !range.includes("-")) return range;
-  const [start, end] = range.split("-").map(s => s.trim());
-  return `${formatTime(start)}–${formatTime(end)}`;
-}
-
-/* =====================================================
-   TEXT WRAP
-===================================================== */
 function wrapText(ctx, text, maxWidth) {
   const words = (text || "").split(/\s+/).filter(Boolean);
   const lines = [];
@@ -207,15 +187,71 @@ function drawLines(ctx, lines, x, y, lh) {
 }
 
 /* =====================================================
+   AUTO-FIT TEXT TO PILL (NEW)
+===================================================== */
+function fitTextToBox(ctx, showText, metaText, maxW, maxH) {
+  let scale = 1;
+
+  while (scale >= 0.55) {
+    const showSize = SHOW.baseSize * PILL.scale * scale;
+    const metaSize = META.baseSize * PILL.scale * scale;
+
+    ctx.font = `${SHOW.weight} ${showSize}px Inter, system-ui, sans-serif`;
+    const showLines = wrapText(ctx, showText, maxW);
+    const showLH = showSize + SHOW.lineGap;
+
+    ctx.font = `${META.weight} ${metaSize}px Inter, system-ui, sans-serif`;
+    const metaLines = wrapText(ctx, metaText, maxW);
+    const metaLH = metaSize + META.lineGap;
+
+    const totalH =
+      showLines.length * showLH +
+      (metaText ? PILL.gap + metaLines.length * metaLH : 0);
+
+    if (totalH <= maxH) {
+      return { scale, showLines, metaLines, showLH, metaLH, totalH };
+    }
+    scale -= 0.03;
+  }
+
+  return { scale: 0.55, showLines: [], metaLines: [], showLH: 0, metaLH: 0, totalH: maxH };
+}
+
+/* =====================================================
+   LIVE HELPERS
+===================================================== */
+function timeToMinutes(t) {
+  const [h, m] = (t || "").split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+function isLiveRow(row) {
+  const d = new Date(row["Date"]);
+  if (isNaN(d)) return false;
+
+  const now = new Date();
+  if (
+    d.getFullYear() !== now.getFullYear() ||
+    d.getMonth() !== now.getMonth() ||
+    d.getDate() !== now.getDate()
+  ) return false;
+
+  if (!row["A-B"]?.includes("-")) return false;
+  const [s, e] = row["A-B"].split("-").map(v => v.trim());
+
+  const nowM = now.getHours() * 60 + now.getMinutes();
+  return nowM >= timeToMinutes(s) && nowM <= timeToMinutes(e);
+}
+
+/* =====================================================
    MAIN
 ===================================================== */
 async function render() {
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, 1080, 1920);
 
-  // 🔥 HARD CACHE BUST
   const csvText = await fetch(
-    CSV_URL + "&t=" + Date.now(),
+    CSV_URL + "&cacheBust=" + Date.now(),
     { cache: "no-store" }
   ).then(r => r.text());
 
@@ -228,7 +264,7 @@ async function render() {
     return o;
   });
 
-  const row = data.find(r => r["Image URL"]);
+  const row = data.find(isLiveRow);
   if (!row) return;
 
   const heroImg = await loadImage(row["Image URL"]);
@@ -241,8 +277,8 @@ async function render() {
   const baseX = HERO.x + HERO.size / 2;
   const baseY = HERO.y + HERO.size;
 
-  /* ===== TIME ===== */
-  const timeText = formatTimeRange(row["A-B"]);
+  /* ===== TIME (UNCHANGED) ===== */
+  const timeText = row["A-B"];
   if (timeText) {
     ctx.fillStyle = "#fff";
     ctx.font = `${TIME.weight} ${TIME.size}px Inter, system-ui, sans-serif`;
@@ -251,11 +287,7 @@ async function render() {
     ctx.fillText(timeText, baseX - w / 2 + TIME.offsetX, baseY + TIME.offsetY);
   }
 
-  /* ===== PILL TEXTBOX ===== */
-
-  const showSize = SHOW.baseSize * PILL.scale;
-  const metaSize = META.baseSize * PILL.scale;
-
+  /* ===== PILL TEXT ===== */
   const showText = row["Now Playing"] || "";
   const metaText = [
     row["DJ"],
@@ -263,30 +295,11 @@ async function render() {
     row["Guest MC"] ? `🎤 ${row["Guest MC"]}` : ""
   ].filter(Boolean).join("  +  ");
 
-  ctx.textBaseline = "top";
-  ctx.textAlign = "left";
+  const pillW = PILL.w;
+  let anchorX = typeof PILL_ANCHOR.x === "number" ? PILL_ANCHOR.x : baseX + PILL.offsetX;
+  let anchorY = typeof PILL_ANCHOR.y === "number" ? PILL_ANCHOR.y : baseY + PILL.offsetY;
 
-  ctx.font = `${SHOW.weight} ${showSize}px Inter, system-ui, sans-serif`;
-  const showW = ctx.measureText(showText).width;
-
-  ctx.font = `${META.weight} ${metaSize}px Inter, system-ui, sans-serif`;
-  const metaW = ctx.measureText(metaText).width;
-
-  let pillW = Math.max(showW, metaW) + PILL.padX * 2;
-  pillW = Math.min(PILL.w, pillW);
-  pillW = Math.max(PILL.minW, pillW);
-
-  // 🔒 anchor logic (ONLY change)
-  let anchorX = baseX + PILL.offsetX;
-  let anchorY = baseY + PILL.offsetY;
-
-  if (typeof PILL_ANCHOR.x === "number") anchorX = PILL_ANCHOR.x;
-  if (typeof PILL_ANCHOR.y === "number") anchorY = PILL_ANCHOR.y;
-
-  let pillX = anchorX;
-  if (PILL_ANCHOR.mode === "center") pillX -= pillW / 2;
-  if (PILL_ANCHOR.mode === "right")  pillX -= pillW;
-
+  let pillX = anchorX - pillW;
   const pillY = anchorY;
 
   ctx.fillStyle = "#fff";
@@ -296,29 +309,29 @@ async function render() {
   const innerX = pillX + PILL.padX;
   const innerY = pillY + PILL.padY;
   const innerW = pillW - PILL.padX * 2;
+  const innerH = PILL.h - PILL.padY * 2;
 
-  ctx.font = `${SHOW.weight} ${showSize}px Inter, system-ui, sans-serif`;
-  const showLines = wrapText(ctx, showText, innerW);
-  const showLH = showSize + SHOW.lineGap;
+  const fit = fitTextToBox(ctx, showText, metaText, innerW, innerH);
 
-  ctx.font = `${META.weight} ${metaSize}px Inter, system-ui, sans-serif`;
-  const metaLines = wrapText(ctx, metaText, innerW);
-  const metaLH = metaSize + META.lineGap;
+  const showSize = SHOW.baseSize * PILL.scale * fit.scale;
+  const metaSize = META.baseSize * PILL.scale * fit.scale;
 
-  const showBlockH = showLines.length * showLH;
-  const metaBlockH = metaLines.length * metaLH;
-  const totalH = showBlockH + (metaText ? PILL.gap + metaBlockH : 0);
-
-  const blockY = innerY + Math.max(0, ((PILL.h - PILL.padY * 2) - totalH) / 2);
+  const blockY = innerY + Math.max(0, (innerH - fit.totalH) / 2);
 
   ctx.fillStyle = SHOW.color;
   ctx.font = `${SHOW.weight} ${showSize}px Inter, system-ui, sans-serif`;
-  drawLines(ctx, showLines, innerX, blockY, showLH);
+  drawLines(ctx, fit.showLines, innerX, blockY, fit.showLH);
 
   if (metaText) {
     ctx.fillStyle = META.color;
     ctx.font = `${META.weight} ${metaSize}px Inter, system-ui, sans-serif`;
-    drawLines(ctx, metaLines, innerX, blockY + showBlockH + PILL.gap, metaLH);
+    drawLines(
+      ctx,
+      fit.metaLines,
+      innerX,
+      blockY + fit.showLines.length * fit.showLH + PILL.gap,
+      fit.metaLH
+    );
   }
 
   if (overlayImg) ctx.drawImage(overlayImg, 0, 0);
