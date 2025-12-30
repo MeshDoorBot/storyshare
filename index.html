@@ -3,23 +3,16 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mesh Story — Image Lock</title>
+<title>Mesh Story — Image Lock (1:1 Overlay)</title>
 
 <style>
-  html, body {
-    margin: 0;
-    background: #000;
-  }
-  body {
-    display: flex;
-    justify-content: center;
-    padding: 40px;
-  }
-  canvas {
-    width: 360px;          /* preview scale */
-    height: auto;
-    background: #000;
-    border: 2px solid #222;
+  html, body { margin:0; background:#000; }
+  body { display:flex; justify-content:center; padding:40px; }
+  canvas{
+    width:360px;            /* preview scale */
+    height:auto;
+    background:#000;
+    border:2px solid #222;
   }
 </style>
 </head>
@@ -37,17 +30,18 @@
 const CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vTavGvSojxM1vYpMv0FSoC-WzIK3IqTYPNl1SYbya4iV8VJUaEmHso7yghmGQPLJvwpsEMzKjbonPDz/pub?output=csv";
 
-// mesh overlay (local file in repo)
-const MESH_SRC = "./meshvertstory.png";
+// overlay inside this GitHub repo (NO scaling)
+const OVERLAY_SRC = "./meshvertstory.png";
 
 /* =====================================================
-   CANVAS + LAYOUT
+   CANVAS
 ===================================================== */
-
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
-// hero placement (LOCK THESE VISUALLY)
+/* =====================================================
+   HERO LAYOUT (tweak later)
+===================================================== */
 const HERO = {
   x: 180,
   y: 420,
@@ -55,17 +49,9 @@ const HERO = {
   radius: 64
 };
 
-// mesh placement (LOCK THESE VISUALLY)
-const MESH = {
-  x: 120,
-  y: 260,
-  height: 1400
-};
-
 /* =====================================================
    HELPERS
 ===================================================== */
-
 function loadImage(src) {
   return new Promise(resolve => {
     const img = new Image();
@@ -74,6 +60,22 @@ function loadImage(src) {
     img.onerror = () => resolve(null);
     img.src = src;
   });
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], n = text[i + 1];
+    if (c === '"' && inQuotes && n === '"') { field += '"'; i++; }
+    else if (c === '"') { inQuotes = !inQuotes; }
+    else if (c === "," && !inQuotes) { row.push(field); field = ""; }
+    else if (c === "\n" && !inQuotes) { row.push(field); rows.push(row); row = []; field = ""; }
+    else { field += c; }
+  }
+  if (field) { row.push(field); rows.push(row); }
+  return rows.map(r => r.map(v => (v ?? "").trim()));
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -86,57 +88,31 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function drawHero(ctx, img, cfg) {
+function drawRoundedCover(ctx, img, x, y, size, r) {
   ctx.save();
-  roundRect(ctx, cfg.x, cfg.y, cfg.size, cfg.size, cfg.radius);
+  roundRect(ctx, x, y, size, size, r);
   ctx.clip();
 
-  const scale = Math.max(
-    cfg.size / img.width,
-    cfg.size / img.height
-  );
+  const scale = Math.max(size / img.width, size / img.height);
+  const w = img.width * scale;
+  const h = img.height * scale;
 
   ctx.drawImage(
     img,
-    cfg.x + (cfg.size - img.width * scale) / 2,
-    cfg.y + (cfg.size - img.height * scale) / 2,
-    img.width * scale,
-    img.height * scale
+    x + (size - w) / 2,
+    y + (size - h) / 2,
+    w,
+    h
   );
 
   ctx.restore();
 }
 
-function parseCSV(text) {
-  const rows = [];
-  let row = [], field = "", inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i], n = text[i + 1];
-    if (c === '"' && inQuotes && n === '"') {
-      field += '"'; i++;
-    } else if (c === '"') {
-      inQuotes = !inQuotes;
-    } else if (c === "," && !inQuotes) {
-      row.push(field); field = "";
-    } else if (c === "\n" && !inQuotes) {
-      row.push(field);
-      rows.push(row);
-      row = []; field = "";
-    } else {
-      field += c;
-    }
-  }
-  if (field) { row.push(field); rows.push(row); }
-  return rows;
-}
-
 /* =====================================================
    MAIN
 ===================================================== */
-
 async function render() {
-  // background
+  // base background
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, 1080, 1920);
 
@@ -145,36 +121,32 @@ async function render() {
   const rows = parseCSV(csvText);
   const headers = rows.shift();
 
-  // map rows
   const data = rows.map(r => {
     const o = {};
     headers.forEach((h, i) => o[h] = r[i] || "");
     return o;
   });
 
-  // take FIRST row with an Image URL
+  // pick first row with Image URL (just for now)
   const row = data.find(r => r["Image URL"]);
   if (!row) return;
 
-  // load images
+  // load hero + overlay
   const heroImg = await loadImage(row["Image URL"]);
-  const meshImg = await loadImage(MESH_SRC);
+  const overlayImg = await loadImage(OVERLAY_SRC);
 
-  // draw hero
+  // hero
   if (heroImg) {
-    drawHero(ctx, heroImg, HERO);
+    drawRoundedCover(ctx, heroImg, HERO.x, HERO.y, HERO.size, HERO.radius);
   }
 
-  // draw mesh OVER hero
-  if (meshImg) {
-    const scale = MESH.height / meshImg.height;
-    ctx.drawImage(
-      meshImg,
-      MESH.x,
-      MESH.y,
-      meshImg.width * scale,
-      meshImg.height * scale
-    );
+  // overlay "slapped on" 1:1 (NO scaling)
+  if (overlayImg) {
+    // draw at native pixel size, top-left of canvas
+    ctx.drawImage(overlayImg, 0, 0);
+
+    // optional: log dims so we can confirm it's 1080x1920
+    console.log("overlay size:", overlayImg.width, overlayImg.height);
   }
 }
 
