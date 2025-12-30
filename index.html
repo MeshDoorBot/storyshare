@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mesh Vert Test</title>
+<title>Mesh Vert Overlay — Base</title>
 
 <style>
   html, body {
@@ -16,10 +16,10 @@
     padding: 40px;
   }
   canvas {
-    width: 360px; /* preview scale */
+    width: 360px;          /* preview scale */
     height: auto;
     background: #000;
-    border: 2px solid #333;
+    border: 2px solid #222;
   }
 </style>
 </head>
@@ -39,49 +39,46 @@ ctx.fillStyle = "#000";
 ctx.fillRect(0, 0, 1080, 1920);
 
 // =======================
-// DEBUG TEXT
-// =======================
-ctx.fillStyle = "#fff";
-ctx.font = "48px Arial";
-ctx.fillText("MESH DEBUG TEST", 360, 120);
-
-// =======================
-// LOAD MESH IMAGE (LOCAL)
+// LOAD MESH OVERLAY (AS-IS)
 // =======================
 const mesh = new Image();
 mesh.src = "./meshvertstory.png";
 
 mesh.onload = () => {
-  console.log("mesh loaded", mesh.width, mesh.height);
+  console.log("mesh loaded:", mesh.width, mesh.height);
 
-  // 🔴 DEBUG BLOCK BEHIND IMAGE
+  // DEBUG BACKDROP (behind mesh so you can see bounds)
   ctx.fillStyle = "rgba(255,0,0,0.25)";
-  ctx.fillRect(100, 300, 300, 1200);
+  ctx.fillRect(120, 260, 320, 1400);
 
-  // SCALE BY HEIGHT (BIG ON PURPOSE)
-  const targetHeight = 1200;
+  // scale by HEIGHT only — no rotation, no tricks
+  const targetHeight = 1400;
   const scale = targetHeight / mesh.height;
+
+  const drawWidth  = mesh.width * scale;
+  const drawHeight = mesh.height * scale;
+
+  const x = 120;
+  const y = 260;
 
   ctx.drawImage(
     mesh,
-    100,
-    300,
-    mesh.width * scale,
-    mesh.height * scale
+    x,
+    y,
+    drawWidth,
+    drawHeight
   );
 
-  // LABEL
+  // label
   ctx.fillStyle = "#0f0";
-  ctx.font = "32px Arial";
-  ctx.fillText("mesh drawn here ↑", 100, 270);
+  ctx.font = "28px Arial";
+  ctx.fillText("mesh overlay (unrotated)", x, y - 16);
 };
 
 mesh.onerror = () => {
-  console.error("FAILED TO LOAD meshvertstory.png");
-
   ctx.fillStyle = "red";
   ctx.font = "48px Arial";
-  ctx.fillText("FAILED TO LOAD MESH", 260, 960);
+  ctx.fillText("FAILED TO LOAD meshvertstory.png", 140, 960);
 };
 </script>
 
