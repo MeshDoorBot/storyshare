@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mesh Story — Image + Time Pill</title>
+<title>Mesh Story — Image + Text</title>
 
 <style>
   html, body { margin:0; background:#000; }
@@ -48,7 +48,7 @@ const HERO = {
 };
 
 /* =====================================================
-   TIME TEXT (LOCKED)
+   TIME (LOCKED)
 ===================================================== */
 const TIME = {
   offsetX: -140,
@@ -58,14 +58,24 @@ const TIME = {
 };
 
 /* =====================================================
-   TIME PILL — NUDGE CONTROLS
+   SHOW NAME — NUDGE CONTROLS
 ===================================================== */
-const PILL = {
-  padX: 28,     // horizontal padding
-  padY: 18,     // vertical padding
-  radius: 999,  // fully rounded
-  offsetX: 0,   // move pill independently if needed
-  offsetY: 0
+const SHOW = {
+  offsetX: 0,
+  offsetY: 78,
+  size: 60,
+  weight: 700
+};
+
+/* =====================================================
+   DJ / GUESTS — NUDGE CONTROLS
+===================================================== */
+const META = {
+  offsetX: 0,
+  offsetY: 148,
+  size: 38,
+  weight: 500,
+  color: "#cfcfcf"
 };
 
 /* =====================================================
@@ -173,40 +183,59 @@ async function render() {
     drawRoundedCover(ctx, heroImg, HERO.x, HERO.y, HERO.size, HERO.radius);
   }
 
-  // ===== TIME + PILL =====
-  const rawRange = row["A-B"];
-  const timeText = formatTimeRange(rawRange);
+  // anchor baseline (below hero)
+  const baseX = HERO.x + HERO.size / 2;
+  const baseY = HERO.y + HERO.size;
 
+  // ===== TIME =====
+  const timeText = formatTimeRange(row["A-B"]);
   if (timeText) {
+    ctx.fillStyle = "#fff";
     ctx.font = `${TIME.weight} ${TIME.size}px Inter, system-ui, sans-serif`;
     ctx.textBaseline = "top";
 
-    const textWidth = ctx.measureText(timeText).width;
+    const w = ctx.measureText(timeText).width;
+    ctx.fillText(
+      timeText,
+      baseX - w / 2 + TIME.offsetX,
+      baseY + TIME.offsetY
+    );
+  }
 
-    const textX =
-      HERO.x +
-      HERO.size / 2 -
-      textWidth / 2 +
-      TIME.offsetX;
-
-    const textY =
-      HERO.y +
-      HERO.size +
-      TIME.offsetY;
-
-    // pill
-    const pillX = textX - PILL.padX + PILL.offsetX;
-    const pillY = textY - PILL.padY + PILL.offsetY;
-    const pillW = textWidth + PILL.padX * 2;
-    const pillH = TIME.size + PILL.padY * 2;
-
+  // ===== SHOW NAME =====
+  const showName = row["Now Playing"];
+  if (showName) {
     ctx.fillStyle = "#fff";
-    roundRect(ctx, pillX, pillY, pillW, pillH, PILL.radius);
-    ctx.fill();
+    ctx.font = `${SHOW.weight} ${SHOW.size}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = "top";
 
-    // text
-    ctx.fillStyle = "#000";
-    ctx.fillText(timeText, textX, textY);
+    const w = ctx.measureText(showName).width;
+    ctx.fillText(
+      showName,
+      baseX - w / 2 + SHOW.offsetX,
+      baseY + SHOW.offsetY
+    );
+  }
+
+  // ===== DJ + GUESTS =====
+  const metaParts = [];
+  if (row["DJ"]) metaParts.push(row["DJ"]);
+  if (row["Guest DJ"]) metaParts.push(`🎧 ${row["Guest DJ"]}`);
+  if (row["Guest MC"]) metaParts.push(`🎤 ${row["Guest MC"]}`);
+
+  const metaText = metaParts.join("  +  ");
+
+  if (metaText) {
+    ctx.fillStyle = META.color;
+    ctx.font = `${META.weight} ${META.size}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = "top";
+
+    const w = ctx.measureText(metaText).width;
+    ctx.fillText(
+      metaText,
+      baseX - w / 2 + META.offsetX,
+      baseY + META.offsetY
+    );
   }
 
   // overlay
