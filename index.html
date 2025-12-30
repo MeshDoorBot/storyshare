@@ -51,9 +51,9 @@ const HERO = {
    TIME TEXT — NUDGE CONTROLS
 ===================================================== */
 const TIME = {
-  offsetX: -30,     // +right / -left
+  offsetX: 0,     // +right / -left
   offsetY: 36,    // +down / -up from hero bottom
-  size: 48,       // font size
+  size: 48,
   weight: 600
 };
 
@@ -117,6 +117,22 @@ function drawRoundedCover(ctx, img, x, y, size, r) {
 }
 
 /* =====================================================
+   TIME FORMATTER (24h → 12h am/pm)
+===================================================== */
+function formatTime(t) {
+  let [h, m] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "pm" : "am";
+  h = h % 12 || 12;
+  return m ? `${h}:${String(m).padStart(2,"0")}${ampm}` : `${h}${ampm}`;
+}
+
+function formatTimeRange(range) {
+  if (!range || !range.includes("-")) return range;
+  const [start, end] = range.split("-").map(s => s.trim());
+  return `${formatTime(start)}–${formatTime(end)}`;
+}
+
+/* =====================================================
    MAIN
 ===================================================== */
 async function render() {
@@ -148,8 +164,10 @@ async function render() {
     drawRoundedCover(ctx, heroImg, HERO.x, HERO.y, HERO.size, HERO.radius);
   }
 
-  // ===== TIME TEXT (A–B) =====
-  const timeText = row["A-B"];
+  // ===== TIME TEXT (FORMATTED) =====
+  const rawRange = row["A-B"];
+  const timeText = formatTimeRange(rawRange);
+
   if (timeText) {
     ctx.fillStyle = "#fff";
     ctx.font = `${TIME.weight} ${TIME.size}px Inter, system-ui, sans-serif`;
