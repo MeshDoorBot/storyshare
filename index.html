@@ -380,14 +380,41 @@ async function render() {
 render();
 
 /* =====================================================
-   EXPORT
+   EXPORT (FULL WIDTH, CROPPED TOP + BOTTOM)
 ===================================================== */
 document.getElementById("exportBtn").onclick = () => {
+
+  /* 🔧 ADJUST THESE */
+  const CROP_TOP = 480;     // pixels to remove from top
+  const CROP_BOTTOM = 580;  // pixels to remove from bottom
+
+  const exportWidth = canvas.width;
+  const exportHeight = canvas.height - CROP_TOP - CROP_BOTTOM;
+
+  // safety check
+  if (exportHeight <= 0) return;
+
+  const out = document.createElement("canvas");
+  out.width = exportWidth;
+  out.height = exportHeight;
+
+  const octx = out.getContext("2d");
+
+  octx.drawImage(
+    canvas,
+    0, CROP_TOP,                 // source x, y
+    exportWidth, exportHeight,   // source w, h
+    0, 0,                        // dest x, y
+    exportWidth, exportHeight    // dest w, h
+  );
+
   const a = document.createElement("a");
-  a.download = "mesh-story-overlay.png";
-  a.href = canvas.toDataURL("image/png");
+  a.download = "mesh-sticker-cropped.png";
+  a.href = out.toDataURL("image/png");
   a.click();
 };
+
+
 </script>
 
 </body>
