@@ -2,186 +2,164 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Mesh Story — Pill Textbox (Wrap)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mesh Sticker Generator</title>
 
 <style>
-  html, body { margin:0; background:#000; }
-  body {
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    padding:40px;
-    gap:12px;
-  }
+@font-face{
+  font-family:'MeshFont';
+  src:url('fonts/MeshFont.ttf') format('truetype');
+  font-display:swap;
+}
 
-  canvas{
-    width:360px;
-    height:auto;
-    background:transparent;
-    border:2px solid #222;
-  }
+html,body{
+  margin:0;
+  background:#000;
+  color:#fff;
+  font-family:MeshFont, system-ui, -apple-system, BlinkMacSystemFont, Inter, Arial, sans-serif;
+}
 
-  /* ================================
-     UI OVERLAY (EXPORT BUTTON)
-     ================================ */
-  #ui-layer{
-    position:fixed;
-    inset:0;
-    z-index:999999;
-    pointer-events:none;
-  }
+body{
+  display:flex;
+  justify-content:center;
+  padding:20px;
+}
 
-  #ui-layer button{
-    position:absolute;
-    bottom:24px;
-    right:24px;
-    pointer-events:auto;
+.container{
+  width:100%;
+  max-width:420px;
+}
 
-    background:#111;
-    color:#fff;
-    border:1px solid #333;
-    padding:10px 16px;
-    border-radius:8px;
-    cursor:pointer;
-    font:14px Inter, system-ui, sans-serif;
-  }
+h1{
+  text-align:center;
+  font-size:16px;
+  margin-bottom:10px;
+  opacity:.7;
+}
 
-  #ui-layer button:hover{
-    background:#1a1a1a;
-  }
+select,button,input{
+  width:100%;
+  padding:10px;
+  margin-bottom:10px;
+  border-radius:6px;
+  border:none;
+  font-size:14px;
+}
+
+button{
+  background:#1db954;
+  color:#fff;
+  cursor:pointer;
+}
+
+canvas{
+  width:100%;
+  height:auto;
+  background:transparent;
+  border-radius:12px;
+  margin-top:10px;
+}
 </style>
 </head>
 
 <body>
+<div class="container">
 
-<canvas id="c" width="1080" height="1920"></canvas>
+<h1>Mesh Sticker — ART GEN</h1>
 
-<!-- ✅ EXPORT BUTTON LAYER -->
-<div id="ui-layer">
-  <button id="exportBtn">Export PNG</button>
+<select id="showPicker" disabled>
+  <option>Loading shows…</option>
+</select>
+
+<input type="text" id="guestInput" placeholder="Add Guest (optional)">
+
+<button id="downloadBtn" disabled>Download Sticker</button>
+
+<canvas id="c" width="600" height="600"></canvas>
+
 </div>
 
 <script>
-/* =====================================================
+/* ===========================
    CONFIG
-===================================================== */
+=========================== */
 
-const CSV_URL =
-  "https://docs.google.com/spreadsheets/d/1iqyTcNLTZqe4WPvhfdSguMO3X4iYnFMVS2KB8q-8pNg/gviz/tq?tqx=out:csv&gid=0";
+const SHEET_URL =
+  "https://script.google.com/macros/s/AKfycbw3QgJtZXB48I0BUMpTE5Dlo2kqMReNuD4jbiEVBaB1z49bSgzEkAgixkjHxwTKRwY0/exec";
 
-const OVERLAY_SRC = "./meshvergtstory.png";
-
-/* =====================================================
-   CANVAS
-===================================================== */
-const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
-
-/* =====================================================
-   HERO (LOCKED)
-===================================================== */
 const HERO = {
-  x: 250,
-  y: 730,
-  size: 650,
-  radius: 8
+  size: 360,
+  y: 40,
+  radius: 16
 };
 
-/* =====================================================
-   TIME (LOCKED)
-===================================================== */
-const TIME = {
-  offsetX: -151,
-  offsetY: -80,
-  size: 38,
-  weight: 600
-};
+const PILL_LEFT = 40;
+const MAX_PILL_WIDTH = 520;
+const PILL_PADDING_X = 32;
+const DATE_TIME_GAP = 12;
 
-/* =====================================================
-   BASE TEXT SIZES (PILL ONLY)
-===================================================== */
-const SHOW = {
-  baseSize: 58,
-  weight: 700,
-  color: "#000",
-  lineGap: 1
-};
+/* ===========================
+   STATE
+=========================== */
 
-const META = {
-  baseSize: 48,
-  weight: 500,
-  color: "#333",
-  lineGap: 6
-};
+let shows = [];
 
-/* =====================================================
-   PILL — TEXTBOX CONTROLS
-===================================================== */
-const PILL = {
-  offsetX: 45,
-  offsetY: 57,
-  w: 520,
-  h: 117,
-  scale: 0.72,
-  padX: 22,
-  padY: 18,
-  gap: 10,
-  radius: 8,
-  minW: 140
-};
+/* ===========================
+   LOAD SHOWS
+=========================== */
+async function loadShows(){
+  const picker = document.getElementById('showPicker');
 
-/* =====================================================
-   PILL ANCHOR
-===================================================== */
-const PILL_ANCHOR = {
-  x: 643,
-  y: null,
-  mode: "right"
-};
-
-/* =====================================================
-   HELPERS
-===================================================== */
-function loadImage(src) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = src;
-  });
-}
-
-function parseCSV(text) {
-  const rows = [];
-  let row = [], field = "", inQuotes = false;
-
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i], n = text[i + 1];
-    if (c === '"' && inQuotes && n === '"') { field += '"'; i++; }
-    else if (c === '"') { inQuotes = !inQuotes; }
-    else if (c === "," && !inQuotes) { row.push(field); field = ""; }
-    else if (c === "\n" && !inQuotes) { row.push(field); rows.push(row); row = []; field = ""; }
-    else { field += c; }
+  try{
+    const res = await fetch(SHEET_URL);
+    shows = await res.json();
+  }catch(e){
+    console.error('Failed to load shows', e);
+    shows = [];
   }
-  if (field) { row.push(field); rows.push(row); }
-  return rows.map(r => r.map(v => (v ?? "").trim()));
+
+  picker.innerHTML = '<option disabled selected>Select a show</option>';
+
+  shows.forEach((s,i)=>{
+    const d = new Date(s.Date);
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent =
+      `${d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})} — ${s['Now Playing']}`;
+    picker.appendChild(opt);
+  });
+
+  picker.disabled = false;
 }
 
-function roundRect(ctx, x, y, w, h, r) {
+/* ===========================
+   EVENTS
+=========================== */
+
+showPicker.addEventListener('change', drawSticker);
+
+/* ===========================
+   HELPERS
+=========================== */
+
+function to12h(time){
+  if(!time) return '';
+  const [h,m] = time.split(':').map(Number);
+  const hr = ((h + 11) % 12) + 1;
+  return `${hr}${m ? ':'+String(m).padStart(2,'0') : ''}${h >= 12 ? 'pm' : 'am'}`;
+}
+
+function drawWhitePill(ctx,x,y,w,h){
+  ctx.fillStyle='#fff';
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
+  ctx.roundRect(x,y,w,h,16);
+  ctx.fill();
 }
 
-function drawRoundedCover(ctx, img, x, y, size, r) {
+function drawRoundedCover(ctx,img,x,y,size,r){
   ctx.save();
-  roundRect(ctx, x, y, size, size, r);
+  ctx.beginPath();
+  ctx.roundRect(x,y,size,size,r);
   ctx.clip();
 
   const scale = Math.max(size / img.width, size / img.height);
@@ -195,227 +173,131 @@ function drawRoundedCover(ctx, img, x, y, size, r) {
     w,
     h
   );
-
   ctx.restore();
 }
 
-function wrapText(ctx, text, maxWidth) {
-  const words = (text || "").split(/\s+/).filter(Boolean);
-  const lines = [];
-  let line = "";
+/* ===========================
+   DRAW STICKER
+=========================== */
+function drawSticker(){
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const cw = canvas.width;
 
-  for (const w of words) {
-    const test = line ? (line + " " + w) : w;
-    if (ctx.measureText(test).width <= maxWidth) {
-      line = test;
-    } else {
-      if (line) lines.push(line);
-      line = w;
-    }
-  }
-  if (line) lines.push(line);
-  return lines;
-}
+  const show = shows[showPicker.value];
+  if(!show || !show['Image URL']) return;
 
-function drawLines(ctx, lines, x, y, lh) {
-  for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(lines[i], x, y + i * lh);
-  }
-}
+  ctx.clearRect(0,0,cw,canvas.height);
 
-/* =====================================================
-   AUTO-FIT TEXT TO PILL
-===================================================== */
-function fitTextToBox(ctx, showText, metaText, maxW, maxH) {
-  let scale = 1;
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.src = show['Image URL'];
 
-  while (scale >= 0.55) {
-    const showSize = SHOW.baseSize * PILL.scale * scale;
-    const metaSize = META.baseSize * PILL.scale * scale;
+  img.onload = () => {
 
-    ctx.font = `${SHOW.weight} ${showSize}px Inter, system-ui, sans-serif`;
-    const showLines = wrapText(ctx, showText, maxW);
-    const showLH = showSize + SHOW.lineGap;
-
-    ctx.font = `${META.weight} ${metaSize}px Inter, system-ui, sans-serif`;
-    const metaLines = wrapText(ctx, metaText, maxW);
-    const metaLH = metaSize + META.lineGap;
-
-    const totalH =
-      showLines.length * showLH +
-      (metaText ? PILL.gap + metaLines.length * metaLH : 0);
-
-    if (totalH <= maxH) {
-      return { scale, showLines, metaLines, showLH, metaLH, totalH };
-    }
-    scale -= 0.03;
-  }
-
-  return { scale: 0.55, showLines: [], metaLines: [], showLH: 0, metaLH: 0, totalH: maxH };
-}
-
-/* =====================================================
-   LIVE HELPERS
-===================================================== */
-function timeToMinutes(t) {
-  const [h, m] = (t || "").split(":").map(Number);
-  return h * 60 + (m || 0);
-}
-
-function isLiveRow(row) {
-  const d = new Date(row["Date"]);
-  if (isNaN(d)) return false;
-
-  const now = new Date();
-  if (
-    d.getFullYear() !== now.getFullYear() ||
-    d.getMonth() !== now.getMonth() ||
-    d.getDate() !== now.getDate()
-  ) return false;
-
-  if (!row["A-B"]?.includes("-")) return false;
-  const [s, e] = row["A-B"].split("-").map(v => v.trim());
-
-  const nowM = now.getHours() * 60 + now.getMinutes();
-  return nowM >= timeToMinutes(s) && nowM <= timeToMinutes(e);
-}
-
-/* =====================================================
-   MAIN
-===================================================== */
-async function render() {
-  ctx.clearRect(0, 0, 1080, 1920);
-
-  const csvText = await fetch(
-    CSV_URL + "&cacheBust=" + Date.now(),
-    { cache: "no-store" }
-  ).then(r => r.text());
-
-  const rows = parseCSV(csvText);
-  const headers = rows.shift();
-
-  const data = rows.map(r => {
-    const o = {};
-    headers.forEach((h, i) => o[h] = r[i] || "");
-    return o;
-  });
-
-  const row = data.find(isLiveRow);
-  if (!row) return;
-
-  const heroImg = await loadImage(row["Image URL"]);
-  const overlayImg = await loadImage(OVERLAY_SRC);
-
-  if (heroImg) {
-    drawRoundedCover(ctx, heroImg, HERO.x, HERO.y, HERO.size, HERO.radius);
-  }
-
-  const baseX = HERO.x + HERO.size / 2;
-  const baseY = HERO.y + HERO.size;
-
-  const timeText = row["A-B"];
-  if (timeText) {
-    ctx.fillStyle = "#fff";
-    ctx.font = `${TIME.weight} ${TIME.size}px Inter, system-ui, sans-serif`;
-    ctx.textBaseline = "top";
-    const w = ctx.measureText(timeText).width;
-    ctx.fillText(timeText, baseX - w / 2 + TIME.offsetX, baseY + TIME.offsetY);
-  }
-
-  const showText = row["Now Playing"] || "";
-  const metaText = [
-    row["DJ"],
-    row["Guest DJ"] ? `🎧 ${row["Guest DJ"]}` : "",
-    row["Guest MC"] ? `🎤 ${row["Guest MC"]}` : ""
-  ].filter(Boolean).join("  +  ");
-
-  let anchorX = typeof PILL_ANCHOR.x === "number" ? PILL_ANCHOR.x : baseX + PILL.offsetX;
-  let anchorY = typeof PILL_ANCHOR.y === "number" ? PILL_ANCHOR.y : baseY + PILL.offsetY;
-
-  const innerH = PILL.h - PILL.padY * 2;
-  const fit = fitTextToBox(ctx, showText, metaText, PILL.w - PILL.padX * 2, innerH);
-
-  let contentW = 0;
-
-  ctx.font = `${SHOW.weight} ${SHOW.baseSize * PILL.scale * fit.scale}px Inter, system-ui, sans-serif`;
-  fit.showLines.forEach(l => contentW = Math.max(contentW, ctx.measureText(l).width));
-
-  ctx.font = `${META.weight} ${META.baseSize * PILL.scale * fit.scale}px Inter, system-ui, sans-serif`;
-  fit.metaLines.forEach(l => contentW = Math.max(contentW, ctx.measureText(l).width));
-
-  const pillW = Math.max(PILL.minW, Math.min(PILL.w, contentW + PILL.padX * 2));
-
-  const pillX = anchorX - pillW;
-  const pillY = anchorY;
-
-  ctx.fillStyle = "#fff";
-  roundRect(ctx, pillX, pillY, pillW, PILL.h, PILL.radius);
-  ctx.fill();
-
-  const innerX = pillX + PILL.padX;
-  const innerY = pillY + PILL.padY;
-  const innerW = pillW - PILL.padX * 2;
-
-  const blockY = innerY + Math.max(0, (innerH - fit.totalH) / 2);
-
-  ctx.fillStyle = SHOW.color;
-  ctx.font = `${SHOW.weight} ${SHOW.baseSize * PILL.scale * fit.scale}px Inter, system-ui, sans-serif`;
-  drawLines(ctx, fit.showLines, innerX, blockY, fit.showLH);
-
-  if (metaText) {
-    ctx.fillStyle = META.color;
-    ctx.font = `${META.weight} ${META.baseSize * PILL.scale * fit.scale}px Inter, system-ui, sans-serif`;
-    drawLines(
+    /* HERO IMAGE */
+    drawRoundedCover(
       ctx,
-      fit.metaLines,
-      innerX,
-      blockY + fit.showLines.length * fit.showLH + PILL.gap,
-      fit.metaLH
+      img,
+      (cw - HERO.size) / 2,
+      HERO.y,
+      HERO.size,
+      HERO.radius
     );
-  }
 
-  if (overlayImg) ctx.drawImage(overlayImg, 0, 0);
+    const heroBottom = HERO.y + HERO.size;
+
+    /* PRIMARY / SECONDARY */
+    const guest = guestInput.value.trim();
+    const title = show['Now Playing'] || '';
+    const dj = show['DJ'] || '';
+
+    const showEqualsDJ =
+      dj && title.toLowerCase() === dj.toLowerCase();
+
+    let primaryLine = title;
+    let secondaryLine = '';
+
+    if(showEqualsDJ){
+      if(guest) primaryLine = `${title} + ${guest}`;
+    } else {
+      secondaryLine = dj + (guest ? ' + ' + guest : '');
+    }
+
+    /* MEASURE */
+    ctx.font = '52px MeshFont';
+    const pw = ctx.measureText(primaryLine).width;
+
+    ctx.font = '36px MeshFont';
+    const sw = secondaryLine ? ctx.measureText(secondaryLine).width : 0;
+
+    const pillW = Math.min(
+      MAX_PILL_WIDTH,
+      Math.max(pw, sw) + PILL_PADDING_X * 2
+    );
+
+    const pillH = secondaryLine ? 130 : 88;
+    const pillY = heroBottom - 44;
+
+    drawWhitePill(ctx, PILL_LEFT, pillY, pillW, pillH);
+
+    const centerY = pillY + pillH / 2;
+
+    ctx.fillStyle='#000';
+    ctx.textAlign='left';
+    ctx.textBaseline='middle';
+
+    ctx.font='52px MeshFont';
+    ctx.fillText(primaryLine, PILL_LEFT + PILL_PADDING_X, secondaryLine ? centerY - 20 : centerY);
+
+    if(secondaryLine){
+      ctx.globalAlpha = 0.75;
+      ctx.font='36px MeshFont';
+      ctx.fillText(secondaryLine, PILL_LEFT + PILL_PADDING_X, centerY + 22);
+      ctx.globalAlpha = 1;
+    }
+
+    /* DATE / TIME */
+    const dateStr = new Date(show.Date)
+      .toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+
+    const [s,e] = (show['A-B'] || '').split('-');
+    const timeStr = `${to12h(s)} → ${to12h(e)}`;
+
+    ctx.font='28px MeshFont';
+    const dateW = ctx.measureText(dateStr).width + 36;
+    const timeW = ctx.measureText(timeStr).width + 36;
+
+    const dtY = pillY + pillH + 10;
+
+    drawWhitePill(ctx, PILL_LEFT, dtY, dateW, 48);
+    drawWhitePill(ctx, PILL_LEFT + dateW + DATE_TIME_GAP, dtY, timeW, 48);
+
+    ctx.fillStyle='#000';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText(dateStr, PILL_LEFT + dateW/2, dtY + 24);
+    ctx.fillText(timeStr, PILL_LEFT + dateW + DATE_TIME_GAP + timeW/2, dtY + 24);
+
+    downloadBtn.disabled = false;
+  };
 }
 
-render();
+/* ===========================
+   DOWNLOAD
+=========================== */
+downloadBtn.onclick = async () => {
+  const blob = await new Promise(r => c.toBlob(r,'image/png',1));
 
-/* =====================================================
-   EXPORT (FULL WIDTH, CROPPED TOP + BOTTOM)
-===================================================== */
-document.getElementById("exportBtn").onclick = () => {
-
-  /* 🔧 ADJUST THESE */
-  const CROP_TOP = 480;     // pixels to remove from top
-  const CROP_BOTTOM = 580;  // pixels to remove from bottom
-
-  const exportWidth = canvas.width;
-  const exportHeight = canvas.height - CROP_TOP - CROP_BOTTOM;
-
-  // safety check
-  if (exportHeight <= 0) return;
-
-  const out = document.createElement("canvas");
-  out.width = exportWidth;
-  out.height = exportHeight;
-
-  const octx = out.getContext("2d");
-
-  octx.drawImage(
-    canvas,
-    0, CROP_TOP,                 // source x, y
-    exportWidth, exportHeight,   // source w, h
-    0, 0,                        // dest x, y
-    exportWidth, exportHeight    // dest w, h
-  );
-
-  const a = document.createElement("a");
-  a.download = "mesh-sticker-cropped.png";
-  a.href = out.toDataURL("image/png");
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'mesh_sticker.png';
   a.click();
+
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 };
 
-
+window.onload = loadShows;
 </script>
-
 </body>
 </html>
